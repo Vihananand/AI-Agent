@@ -20,5 +20,5 @@ try:
         print(agent_response)
         print("-------------------------------------")
 finally:
-    logger.info("CHAT SESSION END")
+    logger.info("CHAT SESSION ENDED")
     stop_run_logging()
