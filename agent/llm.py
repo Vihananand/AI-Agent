@@ -3,7 +3,10 @@ import os
 from dotenv import load_dotenv
 from groq import Groq
 
+from agent.logging_config import get_logger
 from agent.tools import TOOL_REGISTRY
+
+logger = get_logger("llm")
 
 load_dotenv()
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
@@ -117,6 +120,18 @@ tools = [
         {
             "directory": {**STRING, "description": "Search root directory."},
             "filename": {**STRING, "description": "Exact filename."},
+            "max_depth": {
+                "type": "integer",
+                "description": "Maximum directory depth; defaults to 5.",
+            },
+            "max_results": {
+                "type": "integer",
+                "description": "Maximum matches; defaults to 100.",
+            },
+            "timeout_seconds": {
+                "type": "integer",
+                "description": "Maximum scan time; defaults to 10 seconds.",
+            },
         },
         ["directory", "filename"],
     ),
@@ -159,6 +174,21 @@ tools = [
         ["port"],
     ),
     function_tool(
+        "list_open_ports",
+        "List open TCP ports on a host within a bounded port range.",
+        {
+            "start_port": {
+                "type": "integer",
+                "description": "First port, from 1 to 65535.",
+            },
+            "end_port": {
+                "type": "integer",
+                "description": "Last port, from 1 to 65535.",
+            },
+            "host": {**STRING, "description": "Host to scan, usually 127.0.0.1."},
+        },
+    ),
+    function_tool(
         "run_command",
         "Execute a shell command after the permission policy allows it.",
         {"command": {**STRING, "description": "Shell command."}},
@@ -168,12 +198,19 @@ tools = [
 
 
 def ask_llm(messages):
-    return client.chat.completions.create(
-        messages=messages,
-        model="qwen/qwen3.8-27b",
-        tools=tools,
-        tool_choice="auto",
-    ).choices[0].message
+    logger.info("Sending Groq request; message_count=%d", len(messages))
+    try:
+        response = client.chat.completions.create(
+            messages=messages,
+            model="qwen/qwen3.8-27b",
+            tools=tools,
+            tool_choice="auto",
+        ).choices[0].message
+        logger.info("Groq request completed; tool_call_count=%d", len(response.tool_calls or []))
+        return response
+    except Exception:
+        logger.exception("Groq request failed")
+        raise
 
 
 if set(TOOL_REGISTRY) != {tool["function"]["name"] for tool in tools}:

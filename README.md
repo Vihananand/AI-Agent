@@ -100,6 +100,39 @@ print(response)
 The agent can use multiple tools during one request. It continues the Groq
 conversation until the model returns a response without more tool calls.
 
+## Conversation Context
+
+The interactive application keeps one `AgentSession` for the entire chat, so
+the model can refer to recent messages and tool results. To prevent the
+conversation from exceeding the model context window, the session:
+
+- Keeps the system prompt and newest complete turns.
+- Removes the oldest complete turns when the context budget is exceeded.
+- Truncates individual tool results before storing them in model context.
+- Keeps the full chat log separately in the session log file.
+
+The default context budget is approximately 24,000 characters. This is a
+deliberately conservative budget because characters are only an estimate of
+tokens. The budget can be changed by passing `max_context_chars` to
+`AgentSession`.
+
+## Run Logs
+
+Each chat session creates one log file in `logs/`. Every user message is marked
+inside that file with a message number:
+
+```text
+logs/run_YYYYMMDD_HHMMSS_microseconds.log
+```
+
+Logs include the chat lifecycle, message boundaries, model requests and responses, selected tools,
+permission classifications, approval outcomes, tool completion status, and
+exceptions. Logger output is written only to these files; it is not printed to
+the terminal. The `logs/` directory is excluded from source control.
+
+API keys are never written to the logs. Tool arguments are logged to make a
+run reproducible, so avoid sending secrets as tool arguments.
+
 ## Architecture
 
 ```text
@@ -161,6 +194,7 @@ deliberately restrictive because `run_command` executes on the local machine.
 | `get_working_directory` | Returns the current working directory. |
 | `get_environment_info` | Returns operating system, platform, Python, and directory details. |
 | `check_port` | Checks whether a local TCP port is in use. |
+| `list_open_ports` | Lists open TCP ports in a bounded local range. |
 
 ### File and directory operations
 
@@ -177,7 +211,7 @@ deliberately restrictive because `run_command` executes on the local machine.
 | `copy_file` | Copies a file. |
 | `file_exists` | Checks whether a path exists. |
 | `get_file_info` | Returns file metadata. |
-| `search_files` | Recursively searches for an exact filename. |
+| `search_files` | Recursively searches for an exact filename with depth, result, and time limits. |
 | `search_text` | Finds matching lines in a text file. |
 | `get_directory_tree` | Displays a bounded directory tree. |
 | `get_file_hash` | Calculates a checksum such as SHA-256. |
